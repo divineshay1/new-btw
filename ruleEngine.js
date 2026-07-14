@@ -114,4 +114,49 @@ function runBacktest(markets, stakePerTrade = 1) {
   };
 }
 
-module.exports = { evaluateMarket, runBacktest, RULES };
+/**
+ * Evaluates a single live snapshot (one open market, right now) against
+ * the same rule set used for backtesting. Returns a verdict per side
+ * (UP/DOWN) so the live UI can show ENTER/SKIP with a reason.
+ *
+ * @param {Object} snapshot
+ * @param {number} snapshot.targetPrice
+ * @param {number} snapshot.currentPrice
+ * @param {number} snapshot.upProb
+ * @param {number} snapshot.downProb
+ * @param {number} snapshot.upPayout
+ * @param {number} snapshot.downPayout
+ */
+function evaluateSnapshot(snapshot) {
+  const { targetPrice, currentPrice, upProb, downProb, upPayout, downPayout } = snapshot;
+  const gap = Math.abs(currentPrice - targetPrice);
+  const gapOk = gap >= RULES.minGapDollars;
+
+  const sides = [
+    { side: 'UP', prob: upProb, payout: upPayout },
+    { side: 'DOWN', prob: downProb, payout: downPayout },
+  ];
+
+  const evaluated = sides.map(s => {
+    const probOk = s.prob != null && s.prob >= RULES.minWinProb && s.prob <= RULES.maxWinProb;
+    const payoutOk = s.payout != null && s.payout >= RULES.minPayout && s.payout <= RULES.maxPayout;
+    const valid = gapOk && probOk && payoutOk;
+
+    const reasons = [];
+    if (!gapOk) reasons.push(`gap $${gap.toFixed(2)} < $${RULES.minGapDollars}`);
+    if (!probOk) reasons.push(`win prob ${(s.prob * 100).toFixed(0)}% outside ${RULES.minWinProb * 100}-${RULES.maxWinProb * 100}%`);
+    if (!payoutOk) reasons.push(`payout ${s.payout?.toFixed(2)}x outside ${RULES.minPayout}-${RULES.maxPayout}x`);
+
+    return {
+      side: s.side,
+      prob: s.prob,
+      payout: s.payout,
+      valid,
+      reason: valid ? 'All conditions met' : reasons.join('; '),
+    };
+  });
+
+  return { gap: Number(gap.toFixed(2)), sides: evaluated };
+}
+
+module.exports = { evaluateMarket, runBacktest, evaluateSnapshot, RULES };
