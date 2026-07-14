@@ -19,13 +19,13 @@ const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
 const path = require('path');
-const { runBacktest } = require('./ruleEngine');
+const { runBacktest, evaluateSnapshot } = require('./ruleEngine');
 
 const app = express();
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const KALSHI_BASE = 'https://trading-api.kalshi.com/trade-api/v2';
+const KALSHI_BASE = 'https://external-api.kalshi.com/trade-api/v2';
 const PORT = process.env.PORT || 3000;
 
 // ---- Helpers -----------------------------------------------------------
@@ -44,6 +44,16 @@ async function fetchJson(url) {
  */
 async function fetchSettledMarkets(series, limit) {
   const url = `${KALSHI_BASE}/markets?series_ticker=${series}&status=settled&limit=${limit}`;
+  const data = await fetchJson(url);
+  return data.markets || [];
+}
+
+/**
+ * Pulls currently open (live, not yet settled) markets for a series so
+ * the live-signal view has something real to evaluate right now.
+ */
+async function fetchOpenMarkets(series, limit) {
+  const url = `${KALSHI_BASE}/markets?series_ticker=${series}&status=open&limit=${limit}`;
   const data = await fetchJson(url);
   return data.markets || [];
 }
@@ -112,6 +122,50 @@ app.get('/api/backtest', async (req, res) => {
 
     const results = runBacktest(enriched);
     res.json(results);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get('/api/live', async (req, res) => {
+  try {
+    const series = req.query.series || 'KXBTC15M';
+    const limit = Number(req.query.limit) || 20;
+
+    const openMarkets = await fetchOpenMarkets(series, limit);
+
+    const evaluated = openMarkets.map(m => {
+      const yesPrice = (m.yes_bid ?? m.last_price ?? 0) / 100; // cents -> probability
+      const noPrice = 1 - yesPrice;
+      const upPayout = yesPrice > 0 ? Number((1 / yesPrice).toFixed(3)) : null;
+      const downPayout = noPrice > 0 ? Number((1 / noPrice).toFixed(3)) : null;
+      const targetPrice = m.strike_price ?? m.floor_strike ?? m.cap_strike;
+      const currentPrice = m.underlying_price ?? targetPrice; // fallback if spot not in payload
+
+      const verdict = evaluateSnapshot({
+        targetPrice,
+        currentPrice,
+        upProb: yesPrice,
+        downProb: noPrice,
+        upPayout,
+        downPayout,
+      });
+
+      const closeMs = new Date(m.close_time).getTime();
+      const secondsRemaining = Math.max(0, Math.round((closeMs - Date.now()) / 1000));
+
+      return {
+        marketId: m.ticker,
+        marketUrl: `https://kalshi.com/markets/${series.toLowerCase()}/${m.ticker.toLowerCase()}`,
+        targetPrice,
+        currentPrice,
+        secondsRemaining,
+        closeTime: m.close_time,
+        ...verdict,
+      };
+    });
+
+    res.json({ count: evaluated.length, markets: evaluated });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
