@@ -205,6 +205,94 @@
 
   .error { color: var(--loss); }
 
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+
+  .tab {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    color: var(--muted);
+    font-weight: 500;
+    padding: 9px 16px;
+  }
+
+  .tab.active {
+    background: var(--surface);
+    color: var(--ivory);
+    border-color: var(--rose-dim);
+  }
+
+  .live-status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .live-status.on { color: #8fd6a8; }
+
+  .disclaimer {
+    font-size: 12.5px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+  }
+
+  .signal-cards { display: grid; gap: 12px; margin-bottom: 8px; }
+
+  .signal-card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+
+  .signal-card.enter { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,161,90,0.15); }
+
+  .signal-card .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .signal-card .market-id {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .verdict {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .verdict.enter { color: var(--gold); }
+  .verdict.skip { color: var(--muted); }
+
+  .side-line { display: flex; gap: 10px; align-items: center; margin: 8px 0; font-size: 13px; color: var(--muted); }
+  .side-line .pill { flex-shrink: 0; }
+  .side-line .reason { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; }
+
+  .card-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+  .card-actions button {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 12.5px;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    color: var(--ivory);
+  }
+
+  .timer { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
+
   footer {
     margin-top: 36px;
     font-size: 12px;
@@ -221,27 +309,196 @@
       <div class="sub">Full-window scan · $8+ gap · 55–65% win probability · 1.20x–1.30x payout (20–30% target)</div>
     </header>
 
-    <div class="controls">
-      <select id="series">
-        <option value="KXBTC15M">KXBTC15M — BTC 15-min</option>
-        <option value="KXBTCD">KXBTCD — BTC daily</option>
-      </select>
-      <select id="limit">
-        <option value="25">Last 25 markets</option>
-        <option value="50" selected>Last 50 markets</option>
-        <option value="100">Last 100 markets</option>
-      </select>
-      <button id="run">Run backtest</button>
+    <div class="tabs">
+      <button class="tab active" data-tab="live">Live Signals</button>
+      <button class="tab" data-tab="backtest">Backtest</button>
     </div>
 
-    <div id="results">
-      <div class="empty">Set your filters and run a backtest to see signals.</div>
+    <div id="live-view">
+      <div class="controls">
+        <select id="live-series">
+          <option value="KXBTC15M">KXBTC15M — BTC 15-min</option>
+        </select>
+        <button id="live-toggle">Start live feed</button>
+        <span class="live-status" id="live-status">Stopped</span>
+      </div>
+      <div class="disclaimer">Signals reflect your own rule set, not investment advice. Kalshi contracts can lose value — you make the final call on every trade.</div>
+      <div id="live-results">
+        <div class="empty">Tap "Start live feed" to begin polling open markets every 10s.</div>
+      </div>
+
+      <div class="signals-head" style="margin-top:28px;">
+        <h2>Trade log</h2>
+        <span id="log-count">0 logged</span>
+      </div>
+      <div id="trade-log">
+        <div class="empty">Trades you log will appear here.</div>
+      </div>
+    </div>
+
+    <div id="backtest-view" style="display:none;">
+      <div class="controls">
+        <select id="series">
+          <option value="KXBTC15M">KXBTC15M — BTC 15-min</option>
+          <option value="KXBTCD">KXBTCD — BTC daily</option>
+        </select>
+        <select id="limit">
+          <option value="25">Last 25 markets</option>
+          <option value="50" selected>Last 50 markets</option>
+          <option value="100">Last 100 markets</option>
+        </select>
+        <button id="run">Run backtest</button>
+      </div>
+
+      <div id="results">
+        <div class="empty">Set your filters and run a backtest to see signals.</div>
+      </div>
     </div>
 
     <footer>Historical data via Kalshi public API · figures are simulated, not investment advice</footer>
   </div>
 
 <script>
+// ---- Tabs ----------------------------------------------------------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    document.getElementById('live-view').style.display = target === 'live' ? 'block' : 'none';
+    document.getElementById('backtest-view').style.display = target === 'backtest' ? 'block' : 'none';
+  });
+});
+
+// ---- Live signals ----------------------------------------------------
+const liveToggle = document.getElementById('live-toggle');
+const liveResultsEl = document.getElementById('live-results');
+const liveStatusEl = document.getElementById('live-status');
+let livePolling = null;
+
+liveToggle.addEventListener('click', () => {
+  if (livePolling) {
+    clearInterval(livePolling);
+    livePolling = null;
+    liveToggle.textContent = 'Start live feed';
+    liveStatusEl.textContent = 'Stopped';
+    liveStatusEl.classList.remove('on');
+    return;
+  }
+  liveToggle.textContent = 'Stop live feed';
+  liveStatusEl.textContent = 'Live · polling every 10s';
+  liveStatusEl.classList.add('on');
+  fetchLive();
+  livePolling = setInterval(fetchLive, 10000);
+});
+
+async function fetchLive() {
+  const series = document.getElementById('live-series').value;
+  try {
+    const res = await fetch(`/api/live?series=${series}`);
+    const data = await res.json();
+    if (data.error) {
+      liveResultsEl.innerHTML = `<div class="error">${data.error}</div>`;
+      return;
+    }
+    renderLive(data.markets);
+  } catch (err) {
+    liveResultsEl.innerHTML = `<div class="error">${err.message}</div>`;
+  }
+}
+
+function renderLive(markets) {
+  if (!markets.length) {
+    liveResultsEl.innerHTML = '<div class="empty">No open markets found right now.</div>';
+    return;
+  }
+
+  liveResultsEl.innerHTML = `<div class="signal-cards">${markets.map(m => {
+    const anyValid = m.sides.some(s => s.valid);
+    const validSide = m.sides.find(s => s.valid);
+    const mins = Math.floor(m.secondsRemaining / 60);
+    const secs = m.secondsRemaining % 60;
+
+    return `
+      <div class="signal-card ${anyValid ? 'enter' : ''}">
+        <div class="row">
+          <span class="market-id">${m.marketId}</span>
+          <span class="timer">${mins}m ${secs}s left</span>
+        </div>
+        <div class="row">
+          <span class="verdict ${anyValid ? 'enter' : 'skip'}">${anyValid ? `ENTER · ${validSide.side}` : 'SKIP'}</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--muted);">gap $${m.gap}</span>
+        </div>
+        ${m.sides.map(s => `
+          <div class="side-line">
+            <span class="pill ${s.side.toLowerCase()}">${s.side}</span>
+            <span class="reason">${s.reason}</span>
+          </div>
+        `).join('')}
+        <div class="card-actions">
+          <button class="btn-secondary" onclick="window.open('${m.marketUrl}', '_blank')">Open on Kalshi</button>
+          ${anyValid ? `<button onclick='logTrade(${JSON.stringify(m).replace(/'/g, "&#39;")})'>Log entry</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('')}</div>`;
+}
+
+// ---- Trade log (stored in this browser only) --------------------------
+function getLog() {
+  try { return JSON.parse(localStorage.getItem('kalshi-trade-log') || '[]'); }
+  catch { return []; }
+}
+
+function logTrade(market) {
+  const validSide = market.sides.find(s => s.valid);
+  const log = getLog();
+  log.unshift({
+    marketId: market.marketId,
+    side: validSide.side,
+    price: market.currentPrice,
+    target: market.targetPrice,
+    gap: market.gap,
+    prob: validSide.prob,
+    payout: validSide.payout,
+    time: new Date().toISOString(),
+  });
+  localStorage.setItem('kalshi-trade-log', JSON.stringify(log));
+  renderLog();
+}
+
+function renderLog() {
+  const log = getLog();
+  document.getElementById('log-count').textContent = `${log.length} logged`;
+  const el = document.getElementById('trade-log');
+
+  if (!log.length) {
+    el.innerHTML = '<div class="empty">Trades you log will appear here.</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Market</th><th>Time</th><th>Side</th><th>Gap</th><th>Win %</th><th>Payout</th></tr></thead>
+      <tbody>
+        ${log.map(t => `
+          <tr>
+            <td>${t.marketId}</td>
+            <td>${new Date(t.time).toLocaleTimeString()}</td>
+            <td><span class="pill ${t.side.toLowerCase()}">${t.side}</span></td>
+            <td>$${t.gap}</td>
+            <td>${(t.prob * 100).toFixed(0)}%</td>
+            <td>${t.payout.toFixed(2)}x</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+renderLog();
+
+// ---- Backtest (existing) ----------------------------------------------
 const runBtn = document.getElementById('run');
 const resultsEl = document.getElementById('results');
 
