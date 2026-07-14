@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Backtest · KXBTC15M</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0710;
+    --surface: #1a0f18;
+    --surface-raised: #241521;
+    --plum: #3a1728;
+    --rose: #e8607e;
+    --rose-dim: #a94a63;
+    --gold: #c9a15a;
+    --ivory: #f3e9ec;
+    --muted: #a98a95;
+    --loss: #b0405a;
+    --hairline: rgba(243, 233, 236, 0.09);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: radial-gradient(ellipse at top, #170b14 0%, var(--bg) 55%);
+    color: var(--ivory);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 32px 20px 80px;
+  }
+
+  .wrap { max-width: 880px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 20px;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--rose);
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 34px;
+    margin: 0;
+    line-height: 1.1;
+  }
+
+  .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+
+  select, input, button {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--ivory);
+    padding: 10px 14px;
+  }
+
+  button {
+    background: linear-gradient(135deg, var(--rose), var(--rose-dim));
+    border: none;
+    color: #1a0f18;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(232, 96, 126, 0.25); }
+  button:disabled { opacity: 0.5; cursor: wait; transform: none; box-shadow: none; }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), var(--rose));
+    opacity: 0.7;
+  }
+
+  .stat .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .stat .value {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 600;
+  }
+
+  .value.pos { color: #8fd6a8; }
+  .value.neg { color: var(--loss); }
+
+  .signals-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  .signals-head h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .signals-head span { color: var(--muted); font-size: 13px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+  }
+
+  th, td {
+    text-align: left;
+    padding: 11px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface-raised);
+  }
+
+  td { font-family: 'IBM Plex Mono', monospace; color: var(--ivory); }
+
+  tr:last-child td { border-bottom: none; }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .pill.up { background: rgba(143, 214, 168, 0.15); color: #8fd6a8; }
+  .pill.down { background: rgba(232, 96, 126, 0.15); color: var(--rose); }
+  .pill.win { background: rgba(201, 161, 90, 0.18); color: var(--gold); }
+  .pill.loss { background: rgba(176, 64, 90, 0.2); color: var(--loss); }
+
+  .empty, .error {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px dashed var(--hairline);
+    border-radius: 14px;
+  }
+
+  .error { color: var(--loss); }
+
+  footer {
+    margin-top: 36px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Rule-Based Backtest</div>
+      <h1>KXBTC15M Signal Replay</h1>
+      <div class="sub">Full-window scan · $8+ gap · 55–65% win probability · 1.20x–1.30x payout (20–30% target)</div>
+    </header>
+
+    <div class="controls">
+      <select id="series">
+        <option value="KXBTC15M">KXBTC15M — BTC 15-min</option>
+        <option value="KXBTCD">KXBTCD — BTC daily</option>
+      </select>
+      <select id="limit">
+        <option value="25">Last 25 markets</option>
+        <option value="50" selected>Last 50 markets</option>
+        <option value="100">Last 100 markets</option>
+      </select>
+      <button id="run">Run backtest</button>
+    </div>
+
+    <div id="results">
+      <div class="empty">Set your filters and run a backtest to see signals.</div>
+    </div>
+
+    <footer>Historical data via Kalshi public API · figures are simulated, not investment advice</footer>
+  </div>
+
+<script>
+const runBtn = document.getElementById('run');
+const resultsEl = document.getElementById('results');
+
+runBtn.addEventListener('click', async () => {
+  const series = document.getElementById('series').value;
+  const limit = document.getElementById('limit').value;
+
+  runBtn.disabled = true;
+  runBtn.textContent = 'Running…';
+  resultsEl.innerHTML = '<div class="empty">Pulling history and scanning markets…</div>';
+
+  try {
+    const res = await fetch(`/api/backtest?series=${series}&limit=${limit}`);
+    const data = await res.json();
+
+    if (data.error) {
+      resultsEl.innerHTML = `<div class="error">${data.error}</div>`;
+      return;
+    }
+
+    renderResults(data);
+  } catch (err) {
+    resultsEl.innerHTML = `<div class="error">${err.message}</div>`;
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = 'Run backtest';
+  }
+});
+
+function renderResults(data) {
+  const allSignals = data.perMarket.flatMap(m => m.signals);
+
+  const statsHtml = `
+    <div class="stats">
+      <div class="stat"><div class="label">Markets scanned</div><div class="value">${data.marketsScanned}</div></div>
+      <div class="stat"><div class="label">Signals found</div><div class="value">${data.totalSignals}</div></div>
+      <div class="stat"><div class="label">Win rate</div><div class="value">${data.winRate}%</div></div>
+      <div class="stat"><div class="label">Total P&L (per $1)</div><div class="value ${data.totalPnl >= 0 ? 'pos' : 'neg'}">${data.totalPnl >= 0 ? '+' : ''}${data.totalPnl}</div></div>
+    </div>
+  `;
+
+  if (!allSignals.length) {
+    resultsEl.innerHTML = statsHtml + '<div class="empty">No signals matched the rule set in this batch. Try a larger market sample.</div>';
+    return;
+  }
+
+  const rows = allSignals
+    .sort((a, b) => new Date(b.time) - new Date(a.time))
+    .map(s => `
+      <tr>
+        <td>${s.marketId}</td>
+        <td>${new Date(s.time).toLocaleString()}</td>
+        <td><span class="pill ${s.side.toLowerCase()}">${s.side}</span></td>
+        <td>$${s.gap}</td>
+        <td>${(s.winProb * 100).toFixed(0)}%</td>
+        <td>${s.payout.toFixed(2)}x</td>
+        <td><span class="pill ${s.outcome.toLowerCase()}">${s.outcome}</span></td>
+        <td class="${s.pnlMultiplier >= 0 ? '' : ''}" style="color:${s.pnlMultiplier >= 0 ? '#8fd6a8' : 'var(--loss)'}">${s.pnlMultiplier >= 0 ? '+' : ''}${s.pnlMultiplier.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+  resultsEl.innerHTML = statsHtml + `
+    <div class="signals-head">
+      <h2>Signals</h2>
+      <span>${allSignals.length} entries · sorted newest first</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Market</th><th>Time</th><th>Side</th><th>Gap</th><th>Win %</th><th>Payout</th><th>Outcome</th><th>P&L</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+</script>
+</body>
+</html>
